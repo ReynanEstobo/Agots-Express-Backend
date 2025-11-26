@@ -1,29 +1,22 @@
 import cors from "cors";
 import "dotenv/config.js";
 import express from "express";
+import AdminRoutes from "./routers/AdminRoutes.js";
 
-// init app
 const app = express();
 
-//enable cors to frontend
-let corsOptions = {
-  origin: process.env.ORIGIN,
+const corsOptions = {
+  origin: "http://localhost:5173", // your frontend
+  credentials: true,
 };
 
-// Middleware
-app.use(express.json());
+// ✅ MUST COME BEFORE routes
 app.use(cors(corsOptions));
+app.use(express.json());
 
-// This is used to log the request on the console
-app.use((req, res, next) => {
-  console.log(req.path, req.method);
-  next();
+// Routes
+app.use("/admin", AdminRoutes);
+
+app.listen(process.env.PORT || 5000, () => {
+  console.log(`Server running on port ${process.env.PORT}`);
 });
-
-try {
-  app.listen(process.env.PORT || 3000, () => {
-    console.log(`listening  to port ${process.env.PORT || 3000}...`);
-  });
-} catch (e) {
-  console.log(e);
-}

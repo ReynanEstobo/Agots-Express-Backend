@@ -1,11 +1,11 @@
 import express from "express";
 import {
+  getAllOrders,
   getDashboardStats,
   getOrderItems,
   getOrdersByHour,
   getRecentOrders,
   getSalesByDay,
-  getAllOrders, // ← import the new controller
 } from "../controllers/DashboardController.js";
 
 const router = express.Router();

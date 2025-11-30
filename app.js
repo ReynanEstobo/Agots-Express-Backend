@@ -7,6 +7,7 @@ import feedbackRoutes from "./routers/FeedbackRoutes.js";
 import menuRoutes from "./routers/MenuRoutes.js"; // Import menu routes
 import StatsRoutes from "./routers/StatsRoutes.js";
 import UsersRoutes from "./routers/UserRoutes.js";
+import AnalyticsRoutes from "./routers/AnalyticsRoutes.js";
 
 const app = express();
 
@@ -18,7 +19,7 @@ app.use("/api/feedback", feedbackRoutes);
 app.use("/stats", StatsRoutes);
 app.use("/dashboard", DashboardRoutes);
 app.use("/api/announcements", announcementsRoutes);
-
+app.use("/analytics", AnalyticsRoutes);
 app.use("/api", menuRoutes); // Add the new menu routes
 
 app.listen(process.env.PORT || 5000, () => {

@@ -94,6 +94,33 @@ export const getDashboardStats = async () => {
       ? (newFeedbackToday / feedbackPrevious) * 100
       : 0;
 
+    const [newCustomersThisMonthResult] = await pool.query(`
+  SELECT COUNT(*) AS newCustomersThisMonth
+  FROM users
+  WHERE role = 'customer'
+    AND MONTH(created_at) = MONTH(CURDATE())
+    AND YEAR(created_at) = YEAR(CURDATE())
+`);
+    const newCustomersThisMonth = Number(
+      newCustomersThisMonthResult[0]?.newCustomersThisMonth || 0
+    );
+
+    const [activeCustomersResult] = await pool.query(`
+  SELECT COUNT(DISTINCT customer_id) AS activeCustomers
+  FROM orders
+  WHERE created_at >= NOW() - INTERVAL 14 DAY
+`);
+    const activeCustomers = Number(
+      activeCustomersResult[0]?.activeCustomers || 0
+    );
+
+    const [avgSpentResult] = await pool.query(`
+  SELECT IFNULL(AVG(total_amount), 0) AS avgSpent
+  FROM orders
+  WHERE status = 'completed'
+`);
+    const avgSpent = Number(avgSpentResult[0]?.avgSpent || 0);
+
     // ------------------------- RETURN -------------------------
     return {
       totalOrders,
@@ -105,6 +132,9 @@ export const getDashboardStats = async () => {
       todayRevenue: Number(todayRevenue.toFixed(2)),
       revenuePrevious: Number(revenuePrevious.toFixed(2)),
       newFeedbackToday,
+      newCustomersThisMonth,
+      activeCustomers,
+      avgSpent,
       feedbackPrevious,
       satisfactionPercentage: Number(satisfactionPercentage.toFixed(1)),
     };

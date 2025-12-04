@@ -38,9 +38,11 @@ export const getOrdersByRiderIdModel = async (riderId, status) => {
            di.phone,
            di.email,
            di.address,
-           di.delivery_instructions
+           di.delivery_instructions,
+           f.rating
     FROM orders o
     JOIN delivery_info di ON o.id = di.order_id
+    LEFT JOIN feedback f ON o.id = f.order_id
     WHERE o.rider_id = ?`;
 
   const params = [riderId];
@@ -54,7 +56,6 @@ export const getOrdersByRiderIdModel = async (riderId, status) => {
 
   const [orders] = await pool.query(query, params);
 
-  // Fetch order items for each order
   const orderIds = orders.map((o) => o.order_id);
   let itemsMap = {};
 
@@ -87,12 +88,10 @@ export const getOrdersByRiderIdModel = async (riderId, status) => {
     customer_address: o.address,
     delivery_instructions: o.delivery_instructions,
     items: itemsMap[o.order_id] || [],
+    rating: o.rating || 0, // <-- include rating here
   }));
 };
 
-// --------------------
-// Get stats for rider
-// --------------------
 // --------------------
 // Get stats for rider
 // --------------------

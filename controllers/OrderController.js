@@ -3,7 +3,6 @@ import pool from "../config/db.js";
 export const placeOrderController = async (req, res) => {
   const { user_id, paymentMethod, deliveryAddress, items } = req.body;
 
-  // Validate required fields
   if (
     !user_id ||
     !deliveryAddress?.first_name ||
@@ -14,12 +13,18 @@ export const placeOrderController = async (req, res) => {
     return res.status(400).json({ message: "Missing required fields" });
   }
 
+  // Ensure paymentMethod is valid ENUM value
+  const validPayments = ["cod", "online"];
+  const payment = validPayments.includes(paymentMethod?.toLowerCase())
+    ? paymentMethod.toLowerCase()
+    : "cod"; // fallback to default if invalid
+
   const connection = await pool.getConnection();
 
   try {
     await connection.beginTransaction();
 
-    // 1️⃣ Fetch cart items if items not sent from frontend
+    // Fetch cart items if not provided
     let orderItems = items;
     if (!orderItems || !orderItems.length) {
       const [cartItems] = await connection.query(
@@ -38,22 +43,21 @@ export const placeOrderController = async (req, res) => {
       }));
     }
 
-    // Calculate total
     const totalAmount = orderItems.reduce(
       (sum, i) => sum + i.price * i.quantity,
       0
     );
 
-    // 2️⃣ Insert into orders
+    // Insert into orders with valid payment method
     const [orderResult] = await connection.query(
       `INSERT INTO orders (customer_id, total_amount, payment_method, status) 
        VALUES (?, ?, ?, 'pending')`,
-      [user_id, totalAmount, paymentMethod]
+      [user_id, totalAmount, payment]
     );
 
     const order_id = orderResult.insertId;
 
-    // 3️⃣ Insert into order_items
+    // Insert into order_items
     for (const item of orderItems) {
       await connection.query(
         `INSERT INTO order_items (order_id, menu_id, quantity, price, total) 
@@ -68,7 +72,7 @@ export const placeOrderController = async (req, res) => {
       );
     }
 
-    // 4️⃣ Insert into delivery_info
+    // Insert delivery info
     await connection.query(
       `INSERT INTO delivery_info 
         (order_id, first_name, last_name, phone, email, address, delivery_instructions) 
@@ -84,7 +88,7 @@ export const placeOrderController = async (req, res) => {
       ]
     );
 
-    // 5️⃣ Clear user's cart
+    // Clear cart
     await connection.query(`DELETE FROM carts WHERE user_id = ?`, [user_id]);
 
     await connection.commit();
@@ -92,10 +96,9 @@ export const placeOrderController = async (req, res) => {
   } catch (err) {
     await connection.rollback();
     console.error("Place Order Error:", err);
-    res.status(500).json({
-      message: "Failed to place order",
-      error: err.message,
-    });
+    res
+      .status(500)
+      .json({ message: "Failed to place order", error: err.message });
   } finally {
     connection.release();
   }

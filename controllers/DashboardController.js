@@ -3,101 +3,55 @@ import pool from "../config/db.js";
 // ------------------------- DASHBOARD STATS -------------------------
 export const getDashboardStats = async (req, res) => {
   try {
-    // --- Orders ---
-    const [ordersToday] = await pool.query(
-      "SELECT COUNT(*) AS total FROM orders WHERE DATE(created_at) = CURDATE()"
+    // --- Total Orders (ALL orders in DB) ---
+    const [totalOrdersResult] = await pool.query(
+      "SELECT COUNT(*) AS total FROM orders"
     );
-    const [ordersYesterday] = await pool.query(
-      "SELECT COUNT(*) AS total FROM orders WHERE DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
+
+    // --- Orders by status ---
+    const [orders] = await pool.query(
+      "SELECT status, COUNT(*) AS count FROM orders GROUP BY status"
     );
+
+    const statusCounts = {
+      pending: 0,
+      preparing: 0,
+      ready: 0,
+      "on the way": 0,
+      completed: 0,
+    };
+    orders.forEach((o) => {
+      if (statusCounts.hasOwnProperty(o.status))
+        statusCounts[o.status] = o.count;
+    });
 
     // --- Customers ---
     const [totalCustomersResult] = await pool.query(
       "SELECT COUNT(*) AS total FROM users WHERE role='customer'"
     );
 
-    // Customers created this month
-    const [newCustomersThisMonthResult] = await pool.query(`
-      SELECT COUNT(*) AS total 
-      FROM users 
-      WHERE role='customer' AND MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())
-    `);
-
-    // Active customers in last 14 days (who made purchases)
-    const [activeCustomersResult] = await pool.query(`
-      SELECT COUNT(DISTINCT u.id) AS total
-      FROM users u
-      JOIN orders o ON o.customer_id = u.id
-      WHERE u.role='customer' AND o.status='completed' AND o.created_at >= DATE_SUB(CURDATE(), INTERVAL 14 DAY)
-    `);
-
-    // Average spent per customer
-    const [avgSpentResult] = await pool.query(`
-      SELECT IFNULL(AVG(total_spent),0) AS avgSpent
-      FROM (
-        SELECT SUM(total_amount) AS total_spent
-        FROM orders o
-        JOIN users u ON u.id = o.customer_id
-        WHERE u.role='customer' AND o.status='completed'
-        GROUP BY o.customer_id
-      ) AS customer_totals
-    `);
-
-    // --- Revenue (completed orders only) ---
-    const [revenueToday] = await pool.query(
-      "SELECT IFNULL(SUM(total_amount),0) AS total FROM orders WHERE status='completed' AND DATE(created_at) = CURDATE()"
-    );
-    const [revenueYesterday] = await pool.query(
-      "SELECT IFNULL(SUM(total_amount),0) AS total FROM orders WHERE status='completed' AND DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)"
-    );
-
-    // --- Feedback ---
-    // 1. Count of feedback today
-    const [feedbackToday] = await pool.query(
-      "SELECT COUNT(*) AS total FROM feedback WHERE DATE(created_at) = CURDATE()"
-    );
-
-    // 2. Satisfaction percentage based on yesterday's feedback
-    const [satisfactionYesterdayResult] = await pool.query(`
-      SELECT IFNULL(SUM(CASE WHEN rating >= 4 THEN 1 ELSE 0 END) / COUNT(*) * 100, 0) AS satisfaction
-      FROM feedback
-      WHERE DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
-    `);
-
     res.status(200).json({
       // Orders
-      totalOrders: Number(ordersToday[0].total || 0),
-      totalOrdersPrevious: Number(ordersYesterday[0].total || 0),
+      totalOrders: Number(totalOrdersResult[0].total || 0),
+      pending: Number(statusCounts.pending),
+      preparing: Number(statusCounts.preparing),
+      ready: Number(statusCounts.ready),
+      onTheWay: Number(statusCounts["on the way"]),
+      completed: Number(statusCounts.completed),
 
       // Customers
       totalCustomers: Number(totalCustomersResult[0].total || 0),
-      newCustomersThisMonth: Number(newCustomersThisMonthResult[0].total || 0),
-      activeCustomers: Number(activeCustomersResult[0].total || 0),
-      avgSpent: Number(avgSpentResult[0].avgSpent || 0),
-
-      // Revenue
-      todayRevenue: Number(revenueToday[0].total || 0),
-      revenuePrevious: Number(revenueYesterday[0].total || 0),
-
-      // Feedback
-      newFeedbackToday: Number(feedbackToday[0].total || 0),
-      satisfactionPercentage: Number(
-        parseFloat(satisfactionYesterdayResult[0].satisfaction || 0).toFixed(1)
-      ),
     });
   } catch (err) {
     console.error("Failed to fetch dashboard stats:", err);
     res.status(500).json({
       totalOrders: 0,
-      totalOrdersPrevious: 0,
+      pending: 0,
+      preparing: 0,
+      ready: 0,
+      onTheWay: 0,
+      completed: 0,
       totalCustomers: 0,
-      newCustomersThisMonth: 0,
-      activeCustomers: 0,
-      avgSpent: 0,
-      todayRevenue: 0,
-      revenuePrevious: 0,
-      newFeedbackToday: 0,
-      satisfactionPercentage: 0,
     });
   }
 };
@@ -132,7 +86,6 @@ export const getAllOrders = async (req, res) => {
       SELECT o.id, u.first_name AS customer_name, o.total_amount, o.status, o.created_at
       FROM orders o
       JOIN users u ON u.id = o.customer_id
-      WHERE DATE(o.created_at) = CURDATE()
       ORDER BY o.created_at DESC
     `);
 
@@ -143,8 +96,8 @@ export const getAllOrders = async (req, res) => {
 
     res.status(200).json(formattedRows);
   } catch (err) {
-    console.error("Failed to fetch today's orders:", err);
-    res.status(500).json({ message: "Failed to fetch today's orders" });
+    console.error("Failed to fetch all orders:", err);
+    res.status(500).json({ message: "Failed to fetch all orders" });
   }
 };
 
@@ -218,7 +171,7 @@ export const getOrderItems = async (req, res) => {
 export const getAllCustomers = async (req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT id, first_name, email, phone, password, address, created_at 
+      SELECT id, first_name, email, phone, address, created_at 
       FROM users 
       WHERE role = 'customer'
       ORDER BY created_at DESC
@@ -233,14 +186,14 @@ export const getAllCustomers = async (req, res) => {
 
 export const updateCustomer = async (req, res) => {
   const { id } = req.params;
-  const { first_name, email, phone, password, address } = req.body;
+  const { first_name, email, phone, address } = req.body;
 
   try {
     await pool.query(
       `UPDATE users 
-       SET first_name = ?, email = ?, phone = ?, password = ?, address = ? 
+       SET first_name = ?, email = ?, phone = ?, address = ? 
        WHERE id = ?`,
-      [first_name, email, phone, password, address, id]
+      [first_name, email, phone, address, id]
     );
 
     res.status(200).json({ message: "Customer updated successfully" });

@@ -17,6 +17,7 @@ export const getStats = async (req, res) => {
       todayCustomers: 0,
       yesterdayCustomers: 0,
       customerPercentage: 0,
+      customerGrowthPercentage: 0, // new field in error response
       todayRevenue: 0,
       revenuePrevious: 0,
       newFeedbackToday: 0,

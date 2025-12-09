@@ -19,6 +19,22 @@ export const getDashboardStats = async () => {
       yesterdayCustomersResult[0]?.yesterdayCustomers || 0
     );
 
+    // Add query for today's customers
+    const [todayCustomersResult] = await pool.query(`
+      SELECT COUNT(*) AS todayCustomers
+      FROM users
+      WHERE role='customer' AND DATE(created_at) = CURDATE()
+    `);
+    const todayCustomers = Number(todayCustomersResult[0]?.todayCustomers || 0);
+
+    // Calculate growth percentage from yesterday to today
+    const customerGrowthPercentage =
+      yesterdayCustomers === 0
+        ? todayCustomers === 0
+          ? 0
+          : 100
+        : ((todayCustomers - yesterdayCustomers) / yesterdayCustomers) * 100;
+
     const [dayBeforeYesterdayCustomersResult] = await pool.query(`
       SELECT COUNT(*) AS dayBeforeYesterdayCustomers
       FROM users
@@ -126,9 +142,10 @@ export const getDashboardStats = async () => {
       totalOrders,
       totalOrdersPrevious,
       totalCustomers,
-      todayCustomers: yesterdayCustomers, // for dashboard display
-      yesterdayCustomers: dayBeforeYesterdayCustomers,
+      todayCustomers, // today's new customers
+      yesterdayCustomers, // yesterday's new customers
       customerPercentage: Number(customerPercentage.toFixed(1)),
+      customerGrowthPercentage: Number(customerGrowthPercentage.toFixed(1)), // new field
       todayRevenue: Number(todayRevenue.toFixed(2)),
       revenuePrevious: Number(revenuePrevious.toFixed(2)),
       newFeedbackToday,
@@ -147,6 +164,7 @@ export const getDashboardStats = async () => {
       todayCustomers: 0,
       yesterdayCustomers: 0,
       customerPercentage: 0,
+      customerGrowthPercentage: 0, // new field in error response
       todayRevenue: 0,
       revenuePrevious: 0,
       newFeedbackToday: 0,

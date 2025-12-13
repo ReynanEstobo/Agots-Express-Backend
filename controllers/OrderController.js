@@ -43,16 +43,20 @@ export const placeOrderController = async (req, res) => {
       }));
     }
 
-    const totalAmount = orderItems.reduce(
+    const subtotal = orderItems.reduce(
       (sum, i) => sum + i.price * i.quantity,
       0
     );
 
+    const deliveryFee = payment === "cod" ? 50 : 0;
+    const totalAmount = subtotal + deliveryFee;
+
     // Insert into orders with valid payment method
     const [orderResult] = await connection.query(
-      `INSERT INTO orders (customer_id, total_amount, payment_method, status) 
-       VALUES (?, ?, ?, 'pending')`,
-      [user_id, totalAmount, payment]
+      `INSERT INTO orders 
+   (customer_id, total_amount, delivery_fee, payment_method, status) 
+   VALUES (?, ?, ?, ?, 'pending')`,
+      [user_id, totalAmount, deliveryFee, payment]
     );
 
     const order_id = orderResult.insertId;
